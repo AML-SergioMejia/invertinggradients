@@ -16,6 +16,9 @@ import datetime
 import time
 import os
 
+from resnet20.cnn import ResNet20
+from inversefed.utils import set_random_seed
+
 torch.backends.cudnn.benchmark = inversefed.consts.BENCHMARK
 
 # Parse input arguments
@@ -30,7 +33,7 @@ if args.deterministic:
 
 if __name__ == "__main__":
     # Choose GPU device and print status information:
-    setup = inversefed.utils.system_startup(args)
+    setup, device = inversefed.utils.system_startup(args)
     start_time = time.time()
 
     # Prepare for training
@@ -41,14 +44,19 @@ if __name__ == "__main__":
     dm = torch.as_tensor(getattr(inversefed.consts, f"{args.dataset.lower()}_mean"), **setup)[:, None, None]
     ds = torch.as_tensor(getattr(inversefed.consts, f"{args.dataset.lower()}_std"), **setup)[:, None, None]
 
-    if args.dataset == "ImageNet":
-        if args.model == "ResNet152":
-            model = torchvision.models.resnet152(pretrained=args.trained_model)
-        else:
-            model = torchvision.models.resnet18(pretrained=args.trained_model)
-        model_seed = None
-    else:
-        model, model_seed = inversefed.construct_model(args.model, num_classes=10, num_channels=3)
+    # if args.dataset == "ImageNet":
+    #     if args.model == "ResNet152":
+    #         model = torchvision.models.resnet152(pretrained=args.trained_model)
+    #     else:
+    #         model = torchvision.models.resnet18(pretrained=args.trained_model)
+    #     model_seed = None
+    # else:
+        # model, model_seed = inversefed.construct_model(args.model, num_classes=10, num_channels=3)
+        
+    model_seed = np.random.randint(0, 2**31 - 10)
+    set_random_seed(model_seed)
+    model = ResNet20(lr=0.1, num_classes=100, device=device)
+        
     model.to(**setup)
     model.eval()
 

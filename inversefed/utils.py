@@ -25,7 +25,7 @@ def system_startup(args=None, defs=None):
         print(repr(defs))
     if torch.cuda.is_available():
         print(f'GPU : {torch.cuda.get_device_name(device=device)}')
-    return setup
+    return setup, device
 
 def save_to_table(out_dir, name, dryrun, **kwargs):
     """Save keys to .csv files. Function adapted from Micah."""
