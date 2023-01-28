@@ -3,7 +3,7 @@
 from inversefed import nn
 from inversefed.nn import construct_model, MetaMonkey
 
-from inversefed.data import construct_dataloaders
+from inversefed.data import construct_dataloaders, _build_cifar100
 from inversefed.training import train
 from inversefed import utils
 
@@ -17,4 +17,4 @@ from inversefed import metrics
 
 __all__ = ['train', 'construct_dataloaders', 'construct_model', 'MetaMonkey',
            'training_strategy', 'nn', 'utils', 'options',
-           'metrics', 'GradientReconstructor', 'FedAvgReconstructor']
+           'metrics', 'GradientReconstructor', 'FedAvgReconstructor', '_build_cifar100']

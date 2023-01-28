@@ -18,6 +18,7 @@ import os
 
 from resnet20.cnn import ResNet20
 from inversefed.utils import set_random_seed
+import inversefed.data.data_processing as data_processing
 
 torch.backends.cudnn.benchmark = inversefed.consts.BENCHMARK
 
@@ -55,9 +56,23 @@ if __name__ == "__main__":
         
     model_seed = np.random.randint(0, 2**31 - 10)
     set_random_seed(model_seed)
+    data_path = args.data_path if args.data_path is not None else '~/data'
+    path = os.path.expanduser(data_path)
+    trainset, validset = inversefed._build_cifar100(path, defs.augmentations)
+    train_subset, _ = data_processing.split_dataset(dataset=trainset, N_agents=10, N_samples_per_class=50)
+    valid_subset, _ = data_processing.split_dataset(dataset=validset, N_agents=10, N_samples_per_class=10)
+    client_id = 0
     model = ResNet20(lr=0.1, num_classes=100, device=device)
-        
+    
     model.to(**setup)
+
+    trainloader = torch.utils.data.DataLoader(train_subset[client_id], batch_size=min(defs.batch_size, len(train_subset[client_id])),
+                                              shuffle=True, drop_last=True, num_workers=4)
+    validloader = torch.utils.data.DataLoader(valid_subset[client_id], batch_size=min(defs.batch_size, len(train_subset[client_id])),
+                                              shuffle=False, drop_last=False, num_workers=4)
+    
+    metrics = inversefed.train(model=model, loss_fn=loss_fn, trainloader=trainloader, validloader=validloader, defs=defs, setup=setup)
+
     model.eval()
 
     # Sanity check: Validate model accuracy
