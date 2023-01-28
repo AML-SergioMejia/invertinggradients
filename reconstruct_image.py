@@ -246,13 +246,13 @@ if __name__ == "__main__":
         os.makedirs(args.image_path, exist_ok=True)
         output_denormalized = torch.clamp(output * ds + dm, 0, 1)
         rec_filename = (
-            f'{validloader.dataset.classes[labels][0]}_{"trained" if args.trained_model else ""}'
+            f'{validloader.dataset.dataset.classes[labels][0]}_{"trained" if args.trained_model else ""}'
             f"{args.model}_{args.cost_fn}-{args.target_id}.png"
         )
         torchvision.utils.save_image(output_denormalized, os.path.join(args.image_path, rec_filename))
 
         gt_denormalized = torch.clamp(ground_truth * ds + dm, 0, 1)
-        gt_filename = f"{validloader.dataset.classes[labels][0]}_ground_truth-{args.target_id}.png"
+        gt_filename = f"{validloader.dataset.dataset.classes[labels][0]}_ground_truth-{args.target_id}.png"
         torchvision.utils.save_image(gt_denormalized, os.path.join(args.image_path, gt_filename))
     else:
         rec_filename = None
