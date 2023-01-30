@@ -153,6 +153,7 @@ if __name__ == "__main__":
             model.eval()
 
         if args.optim == "ours":
+            print("Running optimization == ours and entered on accumulaton == 0")
             config = dict(
                 signed=args.signed,
                 boxed=args.boxed,
