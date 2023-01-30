@@ -70,8 +70,9 @@ if __name__ == "__main__":
                                               shuffle=True, drop_last=True, num_workers=4)
     validloader = torch.utils.data.DataLoader(valid_subset[client_id], batch_size=min(defs.batch_size, len(train_subset[client_id])),
                                               shuffle=False, drop_last=False, num_workers=4)
-    
-    metrics = inversefed.train(model=model, loss_fn=loss_fn, trainloader=trainloader, validloader=validloader, defs=defs, setup=setup)
+    if(args.trained_model == False):
+        print("Starting training of the model")
+        metrics = inversefed.train(model=model, loss_fn=loss_fn, trainloader=trainloader, validloader=validloader, defs=defs, setup=setup)
 
     model.eval()
 
@@ -224,7 +225,7 @@ if __name__ == "__main__":
             lr=1,
             optim=args.optimizer,
             restarts=args.restarts,
-            max_iterations=24_000,
+            max_iterations= 24_000,
             total_variation=args.tv,
             init=args.init,
             filter="none",
@@ -246,15 +247,16 @@ if __name__ == "__main__":
     if args.save_image and not args.dryrun:
         os.makedirs(args.image_path, exist_ok=True)
         output_denormalized = torch.clamp(output * ds + dm, 0, 1)
-        rec_filename = (
-            f'{validloader.dataset.dataset.classes[labels][0]}_{"trained" if args.trained_model else ""}'
-            f"{args.model}_{args.cost_fn}-{args.target_id}.png"
-        )
-        torchvision.utils.save_image(output_denormalized, os.path.join(args.image_path, rec_filename))
+        for label in labels:
+            rec_filename = (
+                f'{validloader.dataset.dataset.classes[label][0]}_{"trained" if args.trained_model else ""}'
+                f"{args.model}_{args.cost_fn}-{args.target_id}.png"
+            )
+            torchvision.utils.save_image(output_denormalized, os.path.join(args.image_path, rec_filename))
 
-        gt_denormalized = torch.clamp(ground_truth * ds + dm, 0, 1)
-        gt_filename = f"{validloader.dataset.dataset.classes[labels][0]}_ground_truth-{args.target_id}.png"
-        torchvision.utils.save_image(gt_denormalized, os.path.join(args.image_path, gt_filename))
+            gt_denormalized = torch.clamp(ground_truth * ds + dm, 0, 1)
+            gt_filename = f"{validloader.dataset.dataset.classes[label][0]}_ground_truth-{args.target_id}.png"
+            torchvision.utils.save_image(gt_denormalized, os.path.join(args.image_path, gt_filename))
     else:
         rec_filename = None
         gt_filename = None
