@@ -58,7 +58,11 @@ if __name__ == "__main__":
     set_random_seed(model_seed)
     data_path = args.data_path if args.data_path is not None else '~/data'
     path = os.path.expanduser(data_path)
-    trainset, validset = inversefed._build_cifar100(path, defs.augmentations)
+    if (args.dataset == "CIFAR100"):
+        trainset, validset = inversefed._build_cifar100(path, defs.augmentations)
+    elif (args.dataset == "CIFAR10"):
+        trainset, validset = inversefed._build_cifar10(path, defs.augmentations)
+
     train_subset, _ = data_processing.split_dataset(dataset=trainset, N_agents=10, N_samples_per_class=50)
     valid_subset, _ = data_processing.split_dataset(dataset=validset, N_agents=10, N_samples_per_class=10)
     client_id = 0
