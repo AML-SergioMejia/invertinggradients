@@ -31,10 +31,13 @@ defs.epochs = args.epochs
 if args.deterministic:
     inversefed.utils.set_deterministic()
 
+ITERATIONS = 20_000
+LR = 1
+
 
 if __name__ == "__main__":
     # Choose GPU device and print status information:
-    setup, device = inversefed.utils.system_startup(args)
+    setup = inversefed.utils.system_startup(args)
     start_time = time.time()
 
     # Prepare for training
@@ -52,39 +55,47 @@ if __name__ == "__main__":
     #         model = torchvision.models.resnet18(pretrained=args.trained_model)
     #     model_seed = None
     # else:
-        # model, model_seed = inversefed.construct_model(args.model, num_classes=10, num_channels=3)
-        
-    model_seed = np.random.randint(0, 2**31 - 10)
-    set_random_seed(model_seed)
+    #     model, model_seed = inversefed.construct_model(args.model, num_classes=10, num_channels=3)
+    
+    
     data_path = args.data_path if args.data_path is not None else '~/data'
     path = os.path.expanduser(data_path)
+        
     if (args.dataset == "CIFAR100"):
+        num_classes = 100
         trainset, validset = inversefed._build_cifar100(path, defs.augmentations)
     elif (args.dataset == "CIFAR10"):
+        num_classes = 10
         trainset, validset = inversefed._build_cifar10(path, defs.augmentations)
+        
+    model_seed = np.random.randint(0, 2**31 - 10)  
+    set_random_seed(model_seed)
+    print(">>> ", model_seed, " <<<")
 
     train_subset, _ = data_processing.split_dataset(dataset=trainset, N_agents=10, N_samples_per_class=50)
     valid_subset, _ = data_processing.split_dataset(dataset=validset, N_agents=10, N_samples_per_class=10)
     client_id = 0
-    model = ResNet20(lr=0.1, num_classes=100, device=device)
-    
-    model.to(**setup)
+    model = ResNet20(lr=0.1, num_classes=num_classes, device=setup["device"])
+
 
     trainloader = torch.utils.data.DataLoader(train_subset[client_id], batch_size=min(defs.batch_size, len(train_subset[client_id])),
                                               shuffle=True, drop_last=True, num_workers=4)
     validloader = torch.utils.data.DataLoader(valid_subset[client_id], batch_size=min(defs.batch_size, len(train_subset[client_id])),
                                               shuffle=False, drop_last=False, num_workers=4)
-    if(args.trained_model == False):
-        print("Starting training of the model")
-        metrics = inversefed.train(model=model, loss_fn=loss_fn, trainloader=trainloader, validloader=validloader, defs=defs, setup=setup)
+    
+    # Load pre trained model
+    if(args.trained_model):
+        model.load_state_dict(torch.load('./models/trained_ResNet20.pt', map_location=torch.device('cpu')))
 
+    
+    model.to(**setup)
     model.eval()
 
     # Sanity check: Validate model accuracy
     training_stats = defaultdict(list)
-    # inversefed.training.training_routine.validate(model, loss_fn, validloader, defs, setup, training_stats)
-    # name, format = loss_fn.metric()
-    # print(f'Val loss is {training_stats["valid_losses"][-1]:6.4f}, Val {name}: {training_stats["valid_" + name][-1]:{format}}.')
+    inversefed.training.training_routine.validate(model, loss_fn, validloader, defs, setup, training_stats)
+    name, format = loss_fn.metric()
+    print(f'Val loss is {training_stats["valid_losses"][-1]:6.4f}, Val {name}: {training_stats["valid_" + name][-1]:{format}}.')
 
     # Choose example images from the validation set or from third-party sources
     if args.num_images == 1:
@@ -121,7 +132,7 @@ if __name__ == "__main__":
             target_id = args.target_id
         while len(labels) < args.num_images:
             img, label = validloader.dataset[target_id]
-            target_id += 1
+            target_id = ( target_id + 1 ) % len(validloader.dataset)
             if label not in labels:
                 labels.append(torch.as_tensor((label,), device=setup["device"]))
                 ground_truth.append(img.to(**setup))
@@ -158,17 +169,16 @@ if __name__ == "__main__":
             model.eval()
 
         if args.optim == "ours":
-            print("Running optimization == ours and entered on accumulaton == 0")
             config = dict(
                 signed=args.signed,
                 boxed=args.boxed,
                 cost_fn=args.cost_fn,
                 indices="def",
                 weights="equal",
-                lr=0.1,
+                lr=LR,
                 optim=args.optimizer,
                 restarts=args.restarts,
-                max_iterations=24_000,
+                max_iterations=ITERATIONS,
                 total_variation=args.tv,
                 init="randn",
                 filter="none",
@@ -226,10 +236,10 @@ if __name__ == "__main__":
             cost_fn=args.cost_fn,
             indices=args.indices,
             weights=args.weights,
-            lr=1,
+            lr=LR,
             optim=args.optimizer,
             restarts=args.restarts,
-            max_iterations= 24_000,
+            max_iterations=ITERATIONS,
             total_variation=args.tv,
             init=args.init,
             filter="none",
@@ -251,16 +261,15 @@ if __name__ == "__main__":
     if args.save_image and not args.dryrun:
         os.makedirs(args.image_path, exist_ok=True)
         output_denormalized = torch.clamp(output * ds + dm, 0, 1)
-        for label in labels:
-            rec_filename = (
-                f'{validloader.dataset.dataset.classes[label][0]}_{"trained" if args.trained_model else ""}'
-                f"{args.model}_{args.cost_fn}-{args.target_id}.png"
-            )
-            torchvision.utils.save_image(output_denormalized, os.path.join(args.image_path, rec_filename))
+        rec_filename = (
+            f'{model_seed}_{args.dataset}_{"trained" if args.trained_model else ""}'
+            f"_LR_{LR}_FROM-VALIDATION_{ITERATIONS}iterations_{args.restarts}restarts_{args.model}_{args.cost_fn}-{args.target_id}.png"
+        )
+        torchvision.utils.save_image(output_denormalized, os.path.join(args.image_path, rec_filename))
 
-            gt_denormalized = torch.clamp(ground_truth * ds + dm, 0, 1)
-            gt_filename = f"{validloader.dataset.dataset.classes[label][0]}_ground_truth-{args.target_id}.png"
-            torchvision.utils.save_image(gt_denormalized, os.path.join(args.image_path, gt_filename))
+        gt_denormalized = torch.clamp(ground_truth * ds + dm, 0, 1)
+        gt_filename = f"{model_seed}_ground_truth-{args.target_id}.png"
+        torchvision.utils.save_image(gt_denormalized, os.path.join(args.image_path, gt_filename))
     else:
         rec_filename = None
         gt_filename = None
